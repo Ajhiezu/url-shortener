@@ -1,9 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const dns = require('dns');
-const urlParser = require('url');
+const { URL } = require('url');
 
 const app = express();
+const port = process.env.PORT || 3000;
+
 app.use(cors());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -18,12 +20,23 @@ app.get('/', (req, res) => {
 
 app.post('/api/shorturl', (req, res) => {
   const { url } = req.body;
-  const hostname = urlParser.parse(url).hostname;
+
+  let hostname;
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error('Invalid protocol');
+    }
+    hostname = parsedUrl.hostname;
+  } catch (err) {
+    return res.json({ error: 'invalid url' });
+  }
 
   dns.lookup(hostname, (err) => {
     if (err) {
       return res.json({ error: 'invalid url' });
     }
+
     const short_url = id++;
     urlDatabase.push({ original_url: url, short_url });
     res.json({ original_url: url, short_url });
@@ -32,16 +45,15 @@ app.post('/api/shorturl', (req, res) => {
 
 app.get('/api/shorturl/:short_url', (req, res) => {
   const shortUrl = parseInt(req.params.short_url);
-  const entry = urlDatabase.find(obj => obj.short_url === shortUrl);
+  const found = urlDatabase.find(entry => entry.short_url === shortUrl);
 
-  if (entry) {
-    res.redirect(entry.original_url);
+  if (found) {
+    res.redirect(found.original_url);
   } else {
     res.json({ error: 'No short URL found for the given input' });
   }
 });
 
-const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
